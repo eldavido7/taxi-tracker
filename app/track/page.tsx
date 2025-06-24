@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 
@@ -12,7 +12,7 @@ type Driver = {
 
 const MapView = dynamic(() => import("./MapView"), { ssr: false });
 
-export default function LiveTrackingContent() {
+function LiveTrackingContent() {
   const searchParams = useSearchParams();
   const driverId = searchParams.get("driverId");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
@@ -80,4 +80,18 @@ export default function LiveTrackingContent() {
   }
 
   return <MapView location={location} driver={driver} />;
+}
+
+export default function LiveTrackingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-screen text-gray-600">
+          Loading...
+        </div>
+      }
+    >
+      <LiveTrackingContent />
+    </Suspense>
+  );
 }
