@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Driver {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String
+  location  Location?
+  createdAt DateTime @default(now())
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  driverId  String   @unique
+  latitude  Float
+  longitude Float
+  updatedAt DateTime @updatedAt
+
+  driver    Driver   @relation(fields: [driverId], references: [id])
+}
