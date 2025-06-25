@@ -22,6 +22,5 @@ model Location {
   latitude  Float
   longitude Float
   updatedAt DateTime @updatedAt
-
   driver    Driver   @relation(fields: [driverId], references: [id])
 }

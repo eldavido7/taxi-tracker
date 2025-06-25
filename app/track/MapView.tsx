@@ -2,18 +2,11 @@
 
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Share2, LocateFixed } from "lucide-react";
 
-type Props = {
-  location: { lat: number; lng: number };
-  driver: { name: string; phone: string; email: string };
-};
-
-const DRIVER_ID = "cmc9m0e5d0000epyk3ynnchjn"; // Replace with your actual driver ID
-
-// Fix default icon paths
-delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: () => string })
+// Fix default marker icons for leaflet
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl: unknown })
   ._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "/leaflet/marker-icon-2x.png",
@@ -21,34 +14,103 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "/leaflet/marker-shadow.png",
 });
 
-// Helper to recenter map from outside
-function RecenterButton({ lat, lng }: { lat: number; lng: number }) {
+type Props = {
+  location: { lat: number; lng: number };
+  driver: { name: string; phone: string; email: string };
+};
+
+const DRIVER_ID = "cmc9m0e5d0000epyk3ynnchjn";
+
+// 🔄 Locate button that uses geolocation API
+function LocateMeButton() {
   const map = useMap();
 
-  const handleRecenter = () => {
-    map.setView([lat, lng], map.getZoom());
+  const handleLocate = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        map.setView([latitude, longitude], 15);
+      },
+      (err) => {
+        alert("Failed to get location.");
+        console.error("Geolocation error:", err);
+      }
+    );
   };
 
   return (
     <button
-      onClick={handleRecenter}
-      className="absolute bottom-20 right-4 z-[999] rounded-full shadow-lg bg-gray-100 hover:bg-gray-200 p-2"
-      type="button"
-      aria-label="Recenter"
+      onClick={handleLocate}
+      className="absolute bottom-20 right-4 mb-20 z-[1001] rounded-full shadow-lg bg-white hover:bg-gray-100 p-3"
+      aria-label="Locate Me"
     >
-      <LocateFixed className="w-5 h-5" />
+      <LocateFixed className="w-6 h-6 text-gray-800" />
     </button>
   );
 }
 
 export default function MapView({ location, driver }: Props) {
   const [shareUrl, setShareUrl] = useState("");
+  const [isSharing, setIsSharing] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setShareUrl(`${window.location.origin}/track?driverId=${DRIVER_ID}`);
     }
-  }, [driver]);
+  }, []);
+
+  useEffect(() => {
+    const driverId = localStorage.getItem("driverId");
+    const lastUpdated = localStorage.getItem("lastUpdatedAt");
+
+    if (driverId && lastUpdated) {
+      const expiryMs = 60 * 1000;
+      const isExpired = Date.now() - Number(lastUpdated) > expiryMs;
+
+      if (!isExpired) {
+        setIsSharing(true);
+      } else {
+        localStorage.removeItem("driverId");
+        localStorage.removeItem("isTracking");
+        localStorage.removeItem("lastUpdatedAt");
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`/api/location?driverId=${DRIVER_ID}`);
+
+        if (res.status === 200) {
+          const data = await res.json();
+          setLastUpdated(new Date(data.updatedAt));
+          setIsOffline(false);
+        } else if (res.status === 410) {
+          setIsOffline(true);
+          setLastUpdated(null);
+        } else {
+          console.warn("Unexpected response:", res.status);
+          setIsOffline(true);
+        }
+      } catch (err) {
+        console.error("Failed to fetch driver status:", err);
+        setIsOffline(true);
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 10000); // every 10s
+    return () => clearInterval(interval);
+  }, []);
 
   const handleShare = async () => {
     try {
@@ -60,12 +122,48 @@ export default function MapView({ location, driver }: Props) {
         });
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        alert("Share not supported. Link copied to clipboard.");
+        alert("Link copied to clipboard.");
       }
     } catch (err) {
       console.error("Share failed:", err);
     }
   };
+
+  const handleStopSharing = async () => {
+    const driverId = localStorage.getItem("driverId");
+    if (!driverId) return;
+
+    try {
+      // Stop polling
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
+      // Remove location from backend
+      await fetch(`/api/location?driverId=${driverId}`, {
+        method: "DELETE",
+      });
+
+      // Clear local storage and update state
+      localStorage.removeItem("driverId");
+      localStorage.removeItem("isTracking");
+      localStorage.removeItem("lastUpdatedAt");
+      setIsSharing(false);
+
+      alert("Location sharing stopped.");
+    } catch (error) {
+      console.error("Error stopping location sharing:", error);
+      alert("Failed to stop sharing location.");
+    }
+  };
+
+  function formatTimeAgo(date: Date): string {
+    const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
+  }
 
   return (
     <div className="relative h-screen w-full">
@@ -89,17 +187,41 @@ export default function MapView({ location, driver }: Props) {
           </Popup>
         </Marker>
 
-        <RecenterButton lat={location.lat} lng={location.lng} />
+        {/* Mobile locate button */}
+        <LocateMeButton />
       </MapContainer>
 
+      {/* Share button */}
       <button
         onClick={handleShare}
-        className="absolute bottom-4 right-4 z-[999] rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white p-3"
-        type="button"
-        aria-label="Share"
+        className="absolute bottom-4 right-4 z-[1001] mb-20 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white p-3"
+        aria-label="Share Location"
       >
-        <Share2 className="w-5 h-5" />
+        <Share2 className="w-6 h-6" />
       </button>
+
+      {/* Stop share button */}
+      {isSharing && (
+        <button
+          type="button"
+          onClick={handleStopSharing}
+          className="mb-20 px-4 py-2 bg-red-600 text-white rounded shadow hover:bg-red-700"
+        >
+          Stop Sharing
+        </button>
+      )}
+
+      <div className="absolute top-4 right-4 bg-white px-3 py-2 rounded shadow text-sm z-[1001]">
+        {isOffline ? (
+          <span className="text-red-600 font-semibold">Driver is offline</span>
+        ) : lastUpdated ? (
+          <span className="text-gray-800">
+            Last active: {formatTimeAgo(lastUpdated)}
+          </span>
+        ) : (
+          <span>Loading status…</span>
+        )}
+      </div>
     </div>
   );
 }

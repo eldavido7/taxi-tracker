@@ -23,8 +23,29 @@ function LiveTrackingContent() {
   useEffect(() => {
     if (!driverId) return;
 
+    // ✅ Store driverId and isTracking in localStorage
+    localStorage.setItem("driverId", driverId);
+    if (!localStorage.getItem("isTracking")) {
+      localStorage.setItem("isTracking", "true");
+    }
+    localStorage.setItem("lastUpdatedAt", Date.now().toString());
+
+    const lastUpdated = localStorage.getItem("lastUpdatedAt");
+    const expiryMs = 60 * 1000; // 1 minute
+
+    if (lastUpdated && Date.now() - Number(lastUpdated) > expiryMs) {
+      // Expired — clear storage
+      localStorage.removeItem("driverId");
+      localStorage.removeItem("isTracking");
+      localStorage.removeItem("lastUpdatedAt");
+      return; // Don't start polling
+    }
+
     const updateLocationAndFetch = () => {
       if (!("geolocation" in navigator)) return;
+
+      const isTracking = localStorage.getItem("isTracking") === "true";
+      if (!isTracking) return; // 🔐 block viewers from sending location
 
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
@@ -45,11 +66,18 @@ function LiveTrackingContent() {
               setLocation({ lat: locData.latitude, lng: locData.longitude });
             }
 
+            if (locRes.status === 410) {
+              console.warn("Location is stale");
+              setLocation(null);
+              return;
+            }
+
             const driverRes = await fetch(`/api/driver/${driverId}`);
             const driverData = await driverRes.json();
             if (driverRes.ok) {
               setDriver(driverData);
             }
+            localStorage.setItem("lastUpdatedAt", Date.now().toString());
           } catch (err) {
             console.error("Error during update:", err);
           }
@@ -68,7 +96,10 @@ function LiveTrackingContent() {
     updateLocationAndFetch();
     const interval = setInterval(updateLocationAndFetch, 5000);
 
-    return () => clearInterval(interval);
+    // ✅ Clear tracking flags
+    return () => {
+      clearInterval(interval);
+    };
   }, [driverId]);
 
   if (!location || !driver) {
