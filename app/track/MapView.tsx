@@ -17,6 +17,7 @@ L.Icon.Default.mergeOptions({
 type Props = {
   location: { lat: number; lng: number };
   driver: { name: string; phone: string; email: string };
+  onStopSharing?: () => void;
 };
 
 const DRIVER_ID = "cmc9m0e5d0000epyk3ynnchjn";
@@ -54,18 +55,28 @@ function LocateMeButton() {
   );
 }
 
-export default function MapView({ location, driver }: Props) {
+export default function MapView({ location, driver, onStopSharing }: Props) {
   const [shareUrl, setShareUrl] = useState("");
-  const [isSharing, setIsSharing] = useState(false);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Get driverId from localStorage for all logic
+  const driverId =
+    typeof window !== "undefined" ? localStorage.getItem("driverId") : null;
+
+  // Only show sharing controls if this browser is the tracker
+  const isTracker =
+    typeof window !== "undefined" &&
+    localStorage.getItem("isTracking") === "true" &&
+    driverId;
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setShareUrl(`${window.location.origin}/track?driverId=${DRIVER_ID}`);
+    // Always share the viewer link (no mode=tracker)
+    if (typeof window !== "undefined" && driverId) {
+      setShareUrl(`${window.location.origin}/track?driverId=${driverId}`);
     }
-  }, []);
+  }, [driverId]);
 
   useEffect(() => {
     const driverId = localStorage.getItem("driverId");
@@ -75,9 +86,7 @@ export default function MapView({ location, driver }: Props) {
       const expiryMs = 60 * 1000;
       const isExpired = Date.now() - Number(lastUpdated) > expiryMs;
 
-      if (!isExpired) {
-        setIsSharing(true);
-      } else {
+      if (isExpired) {
         localStorage.removeItem("driverId");
         localStorage.removeItem("isTracking");
         localStorage.removeItem("lastUpdatedAt");
@@ -130,6 +139,11 @@ export default function MapView({ location, driver }: Props) {
   };
 
   const handleStopSharing = async () => {
+    if (onStopSharing) {
+      await onStopSharing();
+      alert("Location sharing stopped.");
+    }
+
     const driverId = localStorage.getItem("driverId");
     if (!driverId) return;
 
@@ -145,13 +159,14 @@ export default function MapView({ location, driver }: Props) {
         method: "DELETE",
       });
 
-      // Clear local storage and update state
+      // Clear local storage
       localStorage.removeItem("driverId");
       localStorage.removeItem("isTracking");
       localStorage.removeItem("lastUpdatedAt");
-      setIsSharing(false);
 
       alert("Location sharing stopped.");
+      // Optionally, redirect or show a message instead of reloading
+      // window.location.reload();
     } catch (error) {
       console.error("Error stopping location sharing:", error);
       alert("Failed to stop sharing location.");
@@ -186,29 +201,27 @@ export default function MapView({ location, driver }: Props) {
             </div>
           </Popup>
         </Marker>
-
-        {/* Mobile locate button */}
-        <LocateMeButton />
+        {isTracker && <LocateMeButton />}
       </MapContainer>
 
-      {/* Share button */}
-      <button
-        onClick={handleShare}
-        className="absolute bottom-4 right-4 z-[1001] mb-20 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white p-3"
-        aria-label="Share Location"
-      >
-        <Share2 className="w-6 h-6" />
-      </button>
-
-      {/* Stop share button */}
-      {isSharing && (
-        <button
-          type="button"
-          onClick={handleStopSharing}
-          className="mb-20 px-4 py-2 bg-red-600 text-white rounded shadow hover:bg-red-700"
-        >
-          Stop Sharing
-        </button>
+      {/* Show share and stop buttons only for tracker */}
+      {isTracker && (
+        <>
+          <button
+            onClick={handleShare}
+            className="absolute bottom-4 right-4 z-[1001] mb-20 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white p-3"
+            aria-label="Share Location"
+          >
+            <Share2 className="w-6 h-6" />
+          </button>
+          <button
+            type="button"
+            onClick={handleStopSharing}
+            className="absolute bottom-4 left-4 z-[1001] mb-20 px-4 py-2 bg-red-600 text-white rounded shadow hover:bg-red-700"
+          >
+            Stop Sharing
+          </button>
+        </>
       )}
 
       <div className="absolute top-4 right-4 bg-white px-3 py-2 rounded shadow text-sm z-[1001]">

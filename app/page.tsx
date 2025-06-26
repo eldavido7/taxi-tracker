@@ -22,7 +22,11 @@ export default function DriverQRPage() {
 
   if (!driver) return <p className="p-4 text-gray-600">Loading...</p>;
 
-  const url =
+  const trackerUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/track?driverId=${DRIVER_ID}&mode=tracker`
+      : "";
+  const viewerUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/track?driverId=${DRIVER_ID}`
       : "";
@@ -34,15 +38,27 @@ export default function DriverQRPage() {
       </h1>
 
       <div className="bg-white p-4 rounded-xl shadow-md">
-        <QRCodeCanvas value={url} size={256} />
+        <QRCodeCanvas value={trackerUrl} size={256} />
       </div>
 
       <p className="mt-4 text-sm text-gray-500">
-        Scan this code to open the driver’s live tracking page.
+        <b>Scan this code to start sharing your location.</b>
+        <br />
+        <span className="text-xs text-gray-400">
+          (Share this link with yourself only. To share your location with
+          others, use the share button after scanning.)
+        </span>
       </p>
 
       <code className="mt-2 text-xs text-gray-400 bg-gray-200 px-2 py-1 rounded">
-        {url}
+        {trackerUrl}
+      </code>
+
+      <p className="mt-4 text-sm text-gray-500">
+        <b>Viewer link (share this with others):</b>
+      </p>
+      <code className="mt-2 text-xs text-gray-400 bg-gray-200 px-2 py-1 rounded">
+        {viewerUrl}
       </code>
     </main>
   );

@@ -15,92 +15,144 @@ const MapView = dynamic(() => import("./MapView"), { ssr: false });
 function LiveTrackingContent() {
   const searchParams = useSearchParams();
   const driverId = searchParams.get("driverId");
+  const mode = searchParams.get("mode");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null
   );
   const [driver, setDriver] = useState<Driver | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+  const [stopped, setStopped] = useState(false);
 
   useEffect(() => {
     if (!driverId) return;
 
-    // ✅ Store driverId and isTracking in localStorage
-    localStorage.setItem("driverId", driverId);
-    if (!localStorage.getItem("isTracking")) {
+    // Only set localStorage if mode=tracker
+    if (
+      typeof window !== "undefined" &&
+      mode === "tracker" &&
+      (localStorage.getItem("driverId") !== driverId ||
+        localStorage.getItem("isTracking") !== "true")
+    ) {
+      localStorage.setItem("driverId", driverId);
       localStorage.setItem("isTracking", "true");
+      localStorage.setItem("lastUpdatedAt", Date.now().toString());
     }
-    localStorage.setItem("lastUpdatedAt", Date.now().toString());
 
-    const lastUpdated = localStorage.getItem("lastUpdatedAt");
-    const expiryMs = 60 * 1000; // 1 minute
-
-    if (lastUpdated && Date.now() - Number(lastUpdated) > expiryMs) {
-      // Expired — clear storage
-      localStorage.removeItem("driverId");
-      localStorage.removeItem("isTracking");
-      localStorage.removeItem("lastUpdatedAt");
-      return; // Don't start polling
-    }
+    // Only post location if isTracking is true and driverId matches and not stopped
+    const isTracking =
+      typeof window !== "undefined" &&
+      localStorage.getItem("isTracking") === "true" &&
+      localStorage.getItem("driverId") === driverId &&
+      !stopped;
 
     const updateLocationAndFetch = () => {
       if (!("geolocation" in navigator)) return;
 
-      const isTracking = localStorage.getItem("isTracking") === "true";
-      if (!isTracking) return; // 🔐 block viewers from sending location
+      if (isTracking) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude, longitude } = pos.coords;
 
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords;
+            try {
+              await fetch("/api/location", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ driverId, latitude, longitude }),
+              });
 
-          try {
-            await fetch("/api/location", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ driverId, latitude, longitude }),
-            });
+              // Fetch location and driver as before
+              const locRes = await fetch(`/api/location?driverId=${driverId}`);
+              if (locRes.status === 410 || locRes.status === 404) {
+                setIsOffline(true);
+                setLocation(null);
+              } else {
+                const locData = await locRes.json();
+                if (locData && locData.latitude && locData.longitude) {
+                  setLocation({
+                    lat: locData.latitude,
+                    lng: locData.longitude,
+                  });
+                  setIsOffline(false);
+                }
+              }
 
-            const locRes = await fetch(`/api/location?driverId=${driverId}`);
-            const locData = await locRes.json();
-            if (locRes.ok && locData.latitude && locData.longitude) {
-              setLocation({ lat: locData.latitude, lng: locData.longitude });
+              const driverRes = await fetch(`/api/driver/${driverId}`);
+              const driverData = await driverRes.json();
+              if (driverRes.ok) {
+                setDriver(driverData);
+              }
+              localStorage.setItem("lastUpdatedAt", Date.now().toString());
+            } catch (err) {
+              console.error("Error during update:", err);
             }
-
-            if (locRes.status === 410) {
-              console.warn("Location is stale");
-              setLocation(null);
-              return;
-            }
-
-            const driverRes = await fetch(`/api/driver/${driverId}`);
-            const driverData = await driverRes.json();
-            if (driverRes.ok) {
-              setDriver(driverData);
-            }
-            localStorage.setItem("lastUpdatedAt", Date.now().toString());
-          } catch (err) {
-            console.error("Error during update:", err);
+          },
+          (err) => {
+            console.error("GPS error", err);
+          },
+          {
+            enableHighAccuracy: true,
+            maximumAge: 5000,
+            timeout: 10000,
           }
-        },
-        (err) => {
-          console.error("GPS error", err);
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 5000,
-          timeout: 10000,
-        }
-      );
+        );
+      } else {
+        // Viewers only fetch location and driver info
+        fetch(`/api/location?driverId=${driverId}`).then(async (res) => {
+          if (res.status === 410 || res.status === 404) {
+            setIsOffline(true);
+            setLocation(null);
+          } else {
+            const locData = await res.json();
+            if (locData && locData.latitude && locData.longitude) {
+              setLocation({ lat: locData.latitude, lng: locData.longitude });
+              setIsOffline(false);
+            }
+          }
+        });
+        fetch(`/api/driver/${driverId}`)
+          .then((res) => res.json())
+          .then((driverData) => setDriver(driverData));
+      }
     };
 
     updateLocationAndFetch();
     const interval = setInterval(updateLocationAndFetch, 5000);
 
-    // ✅ Clear tracking flags
+    // Clear tracking flags on unload if this is the tracker
+    const handleUnload = () => {
+      if (isTracking) {
+        localStorage.removeItem("driverId");
+        localStorage.removeItem("isTracking");
+        localStorage.removeItem("lastUpdatedAt");
+        fetch(`/api/location?driverId=${driverId}`, { method: "DELETE" });
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+
     return () => {
       clearInterval(interval);
+      window.removeEventListener("beforeunload", handleUnload);
     };
-  }, [driverId]);
+  }, [driverId, mode, stopped]);
+
+  // Handler for stopping sharing, passed to MapView
+  const handleStopSharing = async () => {
+    setStopped(true);
+    localStorage.removeItem("driverId");
+    localStorage.removeItem("isTracking");
+    localStorage.removeItem("lastUpdatedAt");
+    await fetch(`/api/location?driverId=${driverId}`, { method: "DELETE" });
+  };
+
+  if (isOffline) {
+    return (
+      <div className="flex items-center justify-center h-screen text-gray-600">
+        Driver is offline or has stopped sharing.
+      </div>
+    );
+  }
 
   if (!location || !driver) {
     return (
@@ -110,7 +162,13 @@ function LiveTrackingContent() {
     );
   }
 
-  return <MapView location={location} driver={driver} />;
+  return (
+    <MapView
+      location={location}
+      driver={driver}
+      onStopSharing={handleStopSharing}
+    />
+  );
 }
 
 export default function LiveTrackingPage() {
