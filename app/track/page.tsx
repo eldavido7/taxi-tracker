@@ -22,11 +22,14 @@ function LiveTrackingContent() {
   const [driver, setDriver] = useState<Driver | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [stopped, setStopped] = useState(false);
+  const [sharingStarted, setSharingStarted] = useState(false);
+  const [hasLocationPermission, setHasLocationPermission] = useState(false);
 
+  const shouldShowStartButton = mode === "tracker" && !sharingStarted;
+
+  // Only set localStorage if mode=tracker
   useEffect(() => {
     if (!driverId) return;
-
-    // Only set localStorage if mode=tracker
     if (
       typeof window !== "undefined" &&
       mode === "tracker" &&
@@ -37,13 +40,28 @@ function LiveTrackingContent() {
       localStorage.setItem("isTracking", "true");
       localStorage.setItem("lastUpdatedAt", Date.now().toString());
     }
+  }, [driverId, mode]);
+
+  // Polling effect, only after permission is granted
+  useEffect(() => {
+    if (!driverId) return;
 
     // Only post location if isTracking is true and driverId matches and not stopped
     const isTracking =
       typeof window !== "undefined" &&
       localStorage.getItem("isTracking") === "true" &&
       localStorage.getItem("driverId") === driverId &&
-      !stopped;
+      !stopped &&
+      (mode !== "tracker" || sharingStarted);
+
+    if (mode === "tracker" && !sharingStarted) {
+      // Don't start polling until sharingStarted is true
+      return;
+    }
+    if (mode === "tracker" && !hasLocationPermission) {
+      // Don't start polling until permission granted
+      return;
+    }
 
     const updateLocationAndFetch = () => {
       if (!("geolocation" in navigator)) return;
@@ -89,6 +107,13 @@ function LiveTrackingContent() {
             }
           },
           (err) => {
+            setIsOffline(true);
+            setLocation(null);
+            alert(
+              err.code === 1
+                ? "Location permission denied. Please allow location access in your browser settings."
+                : `Failed to get your location (error ${err.code}): ${err.message}`
+            );
             console.error("GPS error", err);
           },
           {
@@ -135,7 +160,7 @@ function LiveTrackingContent() {
       clearInterval(interval);
       window.removeEventListener("beforeunload", handleUnload);
     };
-  }, [driverId, mode, stopped]);
+  }, [driverId, mode, stopped, sharingStarted, hasLocationPermission]);
 
   // Handler for stopping sharing, passed to MapView
   const handleStopSharing = async () => {
@@ -145,6 +170,60 @@ function LiveTrackingContent() {
     localStorage.removeItem("lastUpdatedAt");
     await fetch(`/api/location?driverId=${driverId}`, { method: "DELETE" });
   };
+
+  // Button click handler: ask for permission ONCE
+  const handleStartSharing = () => {
+    if (!("geolocation" in navigator)) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setHasLocationPermission(true);
+        setSharingStarted(true);
+        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        navigator.geolocation.clearWatch(watchId); // Only need one update for permission
+      },
+      (err) => {
+        alert(
+          err.code === 1
+            ? "Location permission denied. Please allow location access in your browser settings."
+            : `Failed to get your location (error ${err.code}): ${err.message}`
+        );
+        setHasLocationPermission(false);
+        navigator.geolocation.clearWatch(watchId);
+      }
+    );
+  };
+
+  if (shouldShowStartButton) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen text-gray-600">
+        {/* iOS-specific guidance */}
+        <div className="mb-4 max-w-xs text-center text-white text-sm font-medium">
+          <span>
+            <b>iPhone/iPad users:</b> If you see &quot;Location permission
+            denied&quot;, go to
+            <br />
+            <b>Settings &gt; Privacy &amp; Security &gt; Location Services</b>,
+            <br />
+            make sure Location Services are ON, and set Safari (or your browser)
+            to &quot;While Using the App&quot;.
+          </span>
+        </div>
+        <button
+          className="px-6 py-3 bg-blue-600 text-white rounded shadow text-lg"
+          onClick={handleStartSharing}
+        >
+          Start Sharing Location
+        </button>
+        <p className="mt-4 text-sm text-gray-500 max-w-xs text-center">
+          To protect your privacy, you must tap the button above to allow
+          location sharing on your device.
+        </p>
+      </div>
+    );
+  }
 
   if (isOffline) {
     return (
