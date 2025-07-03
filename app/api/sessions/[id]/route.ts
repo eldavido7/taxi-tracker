@@ -2,17 +2,16 @@ import prisma from '@/lib/prisma';
 import { NextResponse, NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
-// Use the correct type for dynamic route params
 export async function POST(
     req: NextRequest,
-    context: { params: { id: string } } // Changed from direct destructuring
+    { params }: { params: { id: string } } // Use destructuring directly
 ) {
     const user = verifyToken(req.headers.get('authorization') || '');
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const sessionId = context.params.id; // Access params from context
+    const sessionId = params.id;
     if (!sessionId) {
         return NextResponse.json({ error: 'Missing session ID' }, { status: 400 });
     }
