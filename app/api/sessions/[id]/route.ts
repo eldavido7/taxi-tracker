@@ -1,11 +1,9 @@
-// /api/sessions/[id]/end/route.ts
-
 import prisma from '@/lib/prisma';
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
 export async function POST(
-    req: Request,
+    req: NextRequest,
     { params }: { params: { id: string } }
 ) {
     const user = verifyToken(req.headers.get('authorization') || '');

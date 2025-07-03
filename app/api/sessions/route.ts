@@ -1,8 +1,8 @@
 import prisma from '@/lib/prisma';
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     const user = verifyToken(req.headers.get('authorization') || '');
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
