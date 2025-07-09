@@ -29,7 +29,7 @@ export async function POST(req: Request) {
                 email: user.email,
             },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '1m' }
         );
 
         return NextResponse.json({ token, user: { id: user.id, name: user.name, email: user.email } });
