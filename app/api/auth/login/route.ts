@@ -3,7 +3,8 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecret'; // replace this in production
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || 'refreshsecret';
 
 export async function POST(req: Request) {
     try {
@@ -23,16 +24,20 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
         }
 
-        const token = jwt.sign(
-            {
-                userId: user.id,
-                email: user.email,
-            },
-            JWT_SECRET,
-            { expiresIn: '1m' }
-        );
+        const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+        const refreshToken = jwt.sign({ userId: user.id }, REFRESH_SECRET, { expiresIn: '1d' });
 
-        return NextResponse.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+        // Optional: Store the refresh token in DB to allow revocation
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { refreshToken },
+        });
+
+        return NextResponse.json({
+            token,
+            refreshToken,
+            user: { id: user.id, name: user.name, email: user.email },
+        });
     } catch (error) {
         console.error('Login error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

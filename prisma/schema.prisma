@@ -35,6 +35,7 @@ model User {
   sessions  Session[]
   trips     Trip[]    @relation("UserTrips")
   createdAt DateTime  @default(now())
+  refreshToken String?  // To persist sessions
 }
 
 enum SessionStatus {
