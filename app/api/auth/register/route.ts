@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import prisma from '@/lib/prisma';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || 'refreshsecret';
 
 export async function POST(req: Request) {
     try {
@@ -17,7 +21,7 @@ export async function POST(req: Request) {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        await prisma.user.create({
+        const newUser = await prisma.user.create({
             data: {
                 name,
                 email,
@@ -25,7 +29,28 @@ export async function POST(req: Request) {
             },
         });
 
-        return NextResponse.json({ message: 'User registered successfully.' });
+        const token = jwt.sign({ userId: newUser.id, email: newUser.email }, JWT_SECRET, {
+            expiresIn: '1h',
+        });
+
+        const refreshToken = jwt.sign({ userId: newUser.id }, REFRESH_SECRET, {
+            expiresIn: '1d',
+        });
+
+        await prisma.user.update({
+            where: { id: newUser.id },
+            data: { refreshToken },
+        });
+
+        return NextResponse.json({
+            token,
+            refreshToken,
+            user: {
+                id: newUser.id,
+                name: newUser.name,
+                email: newUser.email,
+            },
+        });
     } catch (error) {
         console.error('Register error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
