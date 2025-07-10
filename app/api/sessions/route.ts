@@ -11,7 +11,8 @@ interface SessionRequestBody {
 
 export async function POST(req: NextRequest) {
     // Verify the user from the authorization header
-    const user = verifyToken(req.headers.get('authorization') || '');
+    const token = req.headers.get('authorization') || '';
+    const user = verifyToken(token);
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -33,6 +34,10 @@ export async function POST(req: NextRequest) {
                 origin,
                 destination,
                 status: 'active',
+            },
+            include: {
+                user: { select: { id: true, name: true, email: true } },
+                driver: { select: { id: true, name: true, email: true, phone: true } },
             },
         });
 

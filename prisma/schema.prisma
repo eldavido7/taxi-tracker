@@ -50,6 +50,10 @@ model Session {
   origin      String
   destination String
   status      SessionStatus
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  distance    Float?   // optional: in kilometers
+  duration    Int?     // optional: in seconds
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
