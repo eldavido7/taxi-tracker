@@ -2,6 +2,41 @@ import prisma from '@/lib/prisma';
 import { NextResponse, NextRequest } from 'next/server';
 import { verifyToken } from '@/lib/auth';
 
+export async function GET(
+    req: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) {
+    const { id: sessionId } = await context.params;
+
+    const user = verifyToken(req.headers.get('authorization') || '');
+    if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!sessionId) {
+        return NextResponse.json({ error: 'Missing session ID' }, { status: 400 });
+    }
+
+    try {
+        const session = await prisma.session.findUnique({
+            where: { id: sessionId },
+            include: {
+                user: { select: { id: true, name: true, email: true } },
+                driver: { select: { id: true, name: true, email: true, phone: true } },
+            },
+        });
+
+        if (!session) {
+            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+        }
+
+        return NextResponse.json(session, { status: 200 });
+    } catch (error) {
+        console.error('Error fetching session:', error);
+        return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
+    }
+}
+
 export async function POST(
     req: NextRequest,
     context: { params: Promise<{ id: string }> }

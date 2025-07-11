@@ -12,7 +12,6 @@ model Driver {
   name      String
   phone     String
   email     String
-  location  Location?
   sessions  Session[]
   trips     Trip[]     @relation("DriverTrips")
   createdAt DateTime   @default(now())
@@ -20,21 +19,21 @@ model Driver {
 
 model Location {
   id        String   @id @default(cuid())
-  driverId  String   @unique
+  sessionId String   @unique
   latitude  Float
   longitude Float
   updatedAt DateTime @updatedAt
-  driver    Driver   @relation(fields: [driverId], references: [id])
+  session   Session  @relation(fields: [sessionId], references: [id])
 }
 
 model User {
-  id        String    @id @default(cuid())
-  name      String
-  email     String    @unique
-  password  String    // hashed
-  sessions  Session[]
-  trips     Trip[]    @relation("UserTrips")
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  name        String
+  email       String    @unique
+  password    String    // hashed
+  sessions    Session[]
+  trips       Trip[]    @relation("UserTrips")
+  createdAt   DateTime  @default(now())
   refreshToken String?  // To persist sessions
 }
 
@@ -56,9 +55,9 @@ model Session {
   duration    Int?     // optional: in seconds
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  user   User   @relation(fields: [userId], references: [id])
-  driver Driver @relation(fields: [driverId], references: [id])
+  location    Location?
+  user        User     @relation(fields: [userId], references: [id])
+  driver      Driver   @relation(fields: [driverId], references: [id])
 }
 
 model Trip {
