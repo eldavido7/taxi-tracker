@@ -15,7 +15,7 @@ export async function GET(
         try {
             const driver = await prisma.driver.findUnique({
                 where: { id },
-                include: { location: true },
+                // include: { location: true },
             });
 
             if (!driver) {
