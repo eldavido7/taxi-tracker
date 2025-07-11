@@ -53,6 +53,8 @@ export async function POST(
     }
 
     try {
+        const { distance, duration } = await req.json();
+
         const existing = await prisma.session.findUnique({
             where: { id: sessionId },
         });
@@ -65,13 +67,16 @@ export async function POST(
             where: { id: sessionId },
             data: {
                 status: 'ended',
+                distance: distance ? parseFloat(distance) : null,
+                duration: duration || null,
+                endedAt: new Date(),
                 updatedAt: new Date(),
             },
         });
 
         return NextResponse.json(updated);
     } catch (error) {
-        console.error(error);
+        console.error('Error ending session:', error);
         return NextResponse.json({ error: 'Failed to end session' }, { status: 500 });
     }
 }
