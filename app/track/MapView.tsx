@@ -64,11 +64,10 @@ export default function MapView({
     const fetchRoute = async () => {
       const originStr = `${origin[0]},${origin[1]}`;
       const destStr = `${destinationCoords[0]},${destinationCoords[1]}`;
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
       try {
         const res = await fetch(
-          `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destStr}&key=${apiKey}`
+          `/api/route?origin=${originStr}&destination=${destStr}`
         );
 
         const data = await res.json();
