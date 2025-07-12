@@ -52,7 +52,7 @@ model Session {
   startedAt   DateTime @default(now())
   endedAt     DateTime?
   distance    Float?   // optional: in kilometers
-  duration    Int?     // optional: in seconds
+  duration    String?     // optional: in seconds
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   location    Location?
