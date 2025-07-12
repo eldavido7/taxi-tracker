@@ -1,14 +1,8 @@
 import prisma from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
     const { sessionId, latitude, longitude } = await req.json();
-
-    const user = verifyToken(req.headers.get('authorization') || '');
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     if (!sessionId || typeof latitude !== 'number' || typeof longitude !== 'number') {
         return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 });
@@ -26,11 +20,6 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get('sessionId');
-
-    const user = verifyToken(req.headers.get('authorization') || '');
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     if (!sessionId) {
         return NextResponse.json({ error: 'sessionId required' }, { status: 400 });
