@@ -66,23 +66,34 @@ export default function MapView({
       const destStr = `${destinationCoords[0]},${destinationCoords[1]}`;
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destStr}&key=${apiKey}`
-      );
+      try {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destStr}&key=${apiKey}`
+        );
 
-      const data = await res.json();
+        const data = await res.json();
+        console.log("Directions API data:", data);
 
-      if (data.routes && data.routes.length > 0) {
-        const encoded = data.routes[0].overview_polyline.points;
-        const decoded = polyline.decode(encoded); // Returns array of [lat, lng]
-        const leafletCoords = decoded.map((point) => [
-          point[0],
-          point[1],
-        ]) as LatLngTuple[];
+        if (data.routes && data.routes.length > 0) {
+          const encoded = data.routes[0].overview_polyline.points;
+          const decoded = polyline.decode(encoded); // [ [lat, lng], ... ]
 
-        setRoute(leafletCoords);
-      } else {
-        console.warn("No routes found from Directions API", data);
+          console.log("Decoded polyline:", decoded);
+
+          const leafletCoords = decoded.map(([lat, lng]) => [
+            lat,
+            lng,
+          ]) as LatLngTuple[];
+
+          console.log("Leaflet coords for polyline:", leafletCoords);
+
+          setRoute(leafletCoords);
+        } else {
+          console.warn("No route found:", data.status, data.error_message);
+          setRoute([]);
+        }
+      } catch (err) {
+        console.error("Route fetch error:", err);
       }
     };
 
