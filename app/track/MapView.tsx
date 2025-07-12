@@ -8,8 +8,9 @@ import {
   Polyline,
 } from "react-leaflet";
 import L from "leaflet";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { LatLngTuple } from "leaflet";
+import polyline from "@mapbox/polyline"; // You’ll need to install this package
 
 // Fix default marker icons for leaflet
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl: unknown })
@@ -47,6 +48,47 @@ export default function MapView({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isOffline, setIsOffline] = useState(false);
 
+  const [route, setRoute] = useState<LatLngTuple[]>([]);
+
+  const origin = useMemo<LatLngTuple>(() => {
+    return parseLatLng(session.origin);
+  }, [session.origin]);
+
+  const destinationCoords = useMemo<LatLngTuple>(() => {
+    return destination
+      ? [destination.lat, destination.lng]
+      : parseLatLng(session.destination);
+  }, [destination, session.destination]);
+
+  useEffect(() => {
+    const fetchRoute = async () => {
+      const originStr = `${origin[0]},${origin[1]}`;
+      const destStr = `${destinationCoords[0]},${destinationCoords[1]}`;
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/directions/json?origin=${originStr}&destination=${destStr}&key=${apiKey}`
+      );
+
+      const data = await res.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const encoded = data.routes[0].overview_polyline.points;
+        const decoded = polyline.decode(encoded); // Returns array of [lat, lng]
+        const leafletCoords = decoded.map((point) => [
+          point[0],
+          point[1],
+        ]) as LatLngTuple[];
+
+        setRoute(leafletCoords);
+      } else {
+        console.warn("No routes found from Directions API", data);
+      }
+    };
+
+    fetchRoute();
+  }, [origin, destinationCoords]);
+
   useEffect(() => {
     const fetchStatus = async () => {
       try {
@@ -82,11 +124,6 @@ export default function MapView({
     const interval = setInterval(fetchStatus, 5000); // Match app's polling
     return () => clearInterval(interval);
   }, [session.id]);
-
-  const origin: LatLngTuple = parseLatLng(session.origin);
-  const destinationCoords: LatLngTuple = destination
-    ? [destination.lat, destination.lng]
-    : parseLatLng(session.destination);
 
   function formatTimeAgo(date: Date): string {
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -124,7 +161,7 @@ export default function MapView({
             </div>
           </Popup>
         </Marker>
-        <Polyline positions={[origin, destinationCoords]} color="blue" />
+        {route.length > 0 && <Polyline positions={route} color="blue" />}
       </MapContainer>
       <div className="absolute top-4 right-4 bg-white px-3 py-2 rounded shadow text-sm z-[1001]">
         {isOffline ? (
