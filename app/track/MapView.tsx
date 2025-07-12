@@ -5,12 +5,11 @@ import {
   TileLayer,
   Marker,
   Popup,
-  // useMap,
   Polyline,
 } from "react-leaflet";
 import L from "leaflet";
 import { useEffect, useState } from "react";
-import { Share2 } from "lucide-react";
+import type { LatLngTuple } from "leaflet";
 
 // Fix default marker icons for leaflet
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl: unknown })
@@ -39,28 +38,34 @@ function parseLatLng(coordinate: string): [number, number] {
   return [lat, lng];
 }
 
-export default function MapView({ location, driver, session }: Props) {
-  const [shareUrl, setShareUrl] = useState("");
+export default function MapView({
+  location,
+  driver,
+  session,
+  destination,
+}: Props) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isOffline, setIsOffline] = useState(false);
-  // const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setShareUrl(`${window.location.origin}/track?sessionId=${session?.id}`);
-    }
-  }, [session?.id]);
 
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`/api/location?sessionId=${session?.id}`);
+        const res = await fetch(`/api/location?sessionId=${session.id}`);
+        const sessionRes = await fetch(`/api/sessions/${session.id}`);
+
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json();
+          if (sessionData.status === "ended") {
+            setIsOffline(false);
+            return; // Let page.tsx handle the ended state
+          }
+        }
 
         if (res.status === 200) {
           const data = await res.json();
           setLastUpdated(new Date(data.updatedAt));
           setIsOffline(false);
-        } else if (res.status === 410) {
+        } else if (res.status === 410 || res.status === 404) {
           setIsOffline(true);
           setLastUpdated(null);
         } else {
@@ -74,12 +79,14 @@ export default function MapView({ location, driver, session }: Props) {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
+    const interval = setInterval(fetchStatus, 5000); // Match app's polling
     return () => clearInterval(interval);
-  }, [session?.id]);
+  }, [session.id]);
 
-  const origin = parseLatLng(session.origin);
-  const destination = parseLatLng(session.destination);
+  const origin: LatLngTuple = parseLatLng(session.origin);
+  const destinationCoords: LatLngTuple = destination
+    ? [destination.lat, destination.lng]
+    : parseLatLng(session.destination);
 
   function formatTimeAgo(date: Date): string {
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -87,23 +94,6 @@ export default function MapView({ location, driver, session }: Props) {
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     return `${Math.floor(diff / 3600)}h ago`;
   }
-
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Track ${driver.name}`,
-          text: `Live session for ${driver.name}`,
-          url: shareUrl,
-        });
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        alert("Link copied to clipboard.");
-      }
-    } catch (err) {
-      console.error("Share failed:", err);
-    }
-  };
 
   return (
     <div className="relative h-screen w-full">
@@ -117,7 +107,6 @@ export default function MapView({ location, driver, session }: Props) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="© OpenStreetMap contributors"
         />
-
         <Marker position={[location.lat, location.lng]}>
           <Popup>
             <div className="text-sm">
@@ -127,8 +116,7 @@ export default function MapView({ location, driver, session }: Props) {
             </div>
           </Popup>
         </Marker>
-
-        <Marker position={destination}>
+        <Marker position={destinationCoords}>
           <Popup>
             <div className="text-sm">
               <p className="font-semibold">Destination</p>
@@ -136,18 +124,8 @@ export default function MapView({ location, driver, session }: Props) {
             </div>
           </Popup>
         </Marker>
-
-        <Polyline positions={[origin, destination]} color="blue" />
+        <Polyline positions={[origin, destinationCoords]} color="blue" />
       </MapContainer>
-
-      <button
-        onClick={handleShare}
-        className="absolute bottom-4 right-4 z-[1001] mb-20 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 text-white p-3"
-        aria-label="Share Location"
-      >
-        <Share2 className="w-6 h-6" />
-      </button>
-
       <div className="absolute top-4 right-4 bg-white px-3 py-2 rounded shadow text-sm z-[1001]">
         {isOffline ? (
           <span className="text-red-600 font-semibold">Driver is offline</span>
