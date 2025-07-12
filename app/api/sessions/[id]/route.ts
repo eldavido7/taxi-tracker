@@ -8,11 +8,6 @@ export async function GET(
 ) {
     const { id: sessionId } = await context.params;
 
-    const user = verifyToken(req.headers.get('authorization') || '');
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     if (!sessionId) {
         return NextResponse.json({ error: 'Missing session ID' }, { status: 400 });
     }
@@ -30,7 +25,7 @@ export async function GET(
             return NextResponse.json({ error: 'Session not found' }, { status: 404 });
         }
 
-        return NextResponse.json(session, { status: 200 });
+        return NextResponse.json(session, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
         console.error('Error fetching session:', error);
         return NextResponse.json({ error: 'Failed to fetch session' }, { status: 500 });
