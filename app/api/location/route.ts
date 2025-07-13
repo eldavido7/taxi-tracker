@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Location not found' }, { status: 404 });
     }
 
-    const oneMinuteAgo = new Date(Date.now() - 60_000);
-    if (location.updatedAt < oneMinuteAgo) {
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60_000);
+    if (location.updatedAt < fifteenMinutesAgo) {
         return NextResponse.json({ error: 'Location stale' }, { status: 410 });
     }
 
