@@ -110,7 +110,7 @@ function LiveTrackingContent() {
 
   if (isEnded) {
     return (
-      <div className="flex items-center justify-center h-screen text-gray-600">
+      <div className="flex items-center justify-center font-bold text-4xl h-screen text-black bg-white">
         Trip has ended.
       </div>
     );
@@ -118,7 +118,7 @@ function LiveTrackingContent() {
 
   if (isOffline) {
     return (
-      <div className="flex items-center justify-center h-screen text-gray-600">
+      <div className="flex items-center justify-center font-bold text-4xl h-screen text-black bg-white">
         Driver is offline or has stopped sharing.
       </div>
     );
