@@ -67,22 +67,27 @@ function ResetPasswordContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center text-black bg-gray-100">
       <Head>
-        <title>Reset Password | Taxi Tracker</title>
+        <title>Reset Password</title>
       </Head>
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold mb-6 text-center">Reset Password</h1>
         {success ? (
-          <p className="text-green-600 text-center">
-            Password reset successfully! Redirecting...
-          </p>
+          <div className="flex flex-col items-center justify-center py-12">
+            <p className="text-green-600 text-center text-lg font-semibold mb-4">
+              Password reset successfully!
+            </p>
+            <p className="text-black text-center">
+              You can now open the app and log in with your new password.
+            </p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-black"
               >
                 New Password
               </label>
@@ -98,7 +103,7 @@ function ResetPasswordContent() {
             <div>
               <label
                 htmlFor="confirmPassword"
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-black"
               >
                 Confirm Password
               </label>
