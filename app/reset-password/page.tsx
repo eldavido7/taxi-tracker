@@ -52,9 +52,6 @@ function ResetPasswordContent() {
       }
 
       setSuccess(true);
-      setTimeout(() => {
-        router.push("/track");
-      }, 2000);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || "An error occurred");
