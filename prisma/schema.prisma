@@ -48,6 +48,7 @@ model Session {
   driverId    String
   origin      String
   destination String
+  destinationName String?
   status      SessionStatus
   startedAt   DateTime @default(now())
   endedAt     DateTime?

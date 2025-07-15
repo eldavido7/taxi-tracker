@@ -67,6 +67,10 @@ export async function POST(
                 endedAt: new Date(),
                 updatedAt: new Date(),
             },
+            include: {
+                user: { select: { id: true, name: true, email: true } },
+                driver: { select: { id: true, name: true, email: true, phone: true } },
+            },
         });
 
         return NextResponse.json(updated);
