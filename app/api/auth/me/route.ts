@@ -24,7 +24,6 @@ export async function GET(req: NextRequest) {
                 email: true,
                 name: true,
                 sessions: true,
-                trips: true,
             },
         });
 
@@ -101,7 +100,6 @@ export async function PATCH(req: NextRequest) {
                 email: true,
                 name: true,
                 sessions: true,
-                trips: true,
             },
         });
 
