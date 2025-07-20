@@ -13,7 +13,6 @@ model Driver {
   phone     String
   email     String
   sessions  Session[]
-  trips     Trip[]     @relation("DriverTrips")
   createdAt DateTime   @default(now())
 }
 
@@ -32,7 +31,6 @@ model User {
   email       String    @unique
   password    String    // hashed
   sessions    Session[]
-  trips       Trip[]    @relation("UserTrips")
   createdAt   DateTime  @default(now())
   refreshToken String?  // To persist sessions
 }
@@ -59,20 +57,4 @@ model Session {
   location    Location?
   user        User     @relation(fields: [userId], references: [id])
   driver      Driver   @relation(fields: [driverId], references: [id])
-}
-
-model Trip {
-  id          String    @id @default(cuid())
-  userId      String
-  driverId    String
-  startLat    Float
-  startLng    Float
-  endLat      Float
-  endLng      Float
-  startedAt   DateTime  @default(now())
-  endedAt     DateTime?
-  isActive    Boolean   @default(true)
-
-  user        User      @relation(fields: [userId], references: [id], name: "UserTrips")
-  driver      Driver    @relation(fields: [driverId], references: [id], name: "DriverTrips")
 }
